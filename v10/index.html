@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>BackPlan — 역산형 계획</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="side">
+        <div class="logo">Back<span>Plan</span></div>
+        <nav class="nav">
+          <button class="active" data-page="dashboard">▣ &nbsp; 대시보드</button
+          ><button data-page="goals">◎ &nbsp; 내 목표</button
+          ><button data-page="calendar">▦ &nbsp; 캘린더</button
+          ><button data-page="stats">◒ &nbsp; 통계</button
+          ><button data-page="settings">⚙ &nbsp; 설정</button>
+        </nav>
+      </aside>
+      <main class="main">
+        <section id="dashboard" class="page active">
+          <div class="top">
+            <div class="title">
+              <h1>오늘의 계획</h1>
+              <p id="todayText"></p>
+            </div>
+            <button class="primary" id="newGoal">＋ 새 목표</button>
+          </div>
+          <div class="grid">
+            <div class="card stat">
+              <div class="label">진행 중인 목표</div>
+              <div class="num" id="statGoals">0</div>
+            </div>
+            <div class="card stat">
+              <div class="label">오늘 할 일</div>
+              <div class="num" id="statTasks">0</div>
+            </div>
+            <div class="card stat">
+              <div class="label">오늘 달성률</div>
+              <div class="num" id="statRate">0%</div>
+            </div>
+            <div class="card stat">
+              <div class="label">전체 진도</div>
+              <div class="num" id="statProgress">0%</div>
+            </div>
+          </div>
+          <div class="layout">
+            <div class="card">
+              <div class="section-title">
+                <h2>목표 진행 상황</h2>
+                <button class="secondary" id="viewAllGoals">전체 보기</button>
+              </div>
+              <div id="goalList"></div>
+            </div>
+            <div class="card">
+              <div class="section-title">
+                <h2>오늘 해야 할 일</h2>
+                <span class="small" id="taskDate"></span>
+              </div>
+              <div id="todayTasks"></div>
+              <div id="warning"></div>
+            </div>
+          </div>
+        </section>
+        <section id="goals" class="page">
+          <div class="top">
+            <div class="title">
+              <h1>내 목표</h1>
+              <p>
+                최종 목표에서 실제 가능한 반복 주기로 오늘의 분량을 역산합니다.
+              </p>
+            </div>
+            <button class="primary" id="newGoal2">＋ 새 목표</button>
+          </div>
+          <div class="card"><div id="allGoals"></div></div>
+        </section>
+        <section id="calendar" class="page">
+          <div class="top">
+            <div class="title">
+              <h1 id="calendarTitle">연간 캘린더</h1>
+              <p>
+                계획 범위는 막대로, 월간·일간 화면에서 세부 일정을 확인하세요.
+              </p>
+            </div>
+            <div class="month-nav">
+              <button class="secondary" id="backAnnual">연간으로</button>
+            </div>
+          </div>
+          <div id="annualView">
+            <div class="section-title">
+              <div>
+                <b id="annualRangeText"></b>
+                <div class="small">
+                  월 헤더에 커서를 올리면 열 전체가 강조되고, 클릭하면 월간
+                  캘린더로 이동합니다.
+                </div>
+              </div>
+            </div>
+            <div class="annual-wrap">
+                <button class="secondary" id="editCalendarRange">
+                  표시 기간 설정
+                </button>
+              <div id="annualGrid" class="annual"></div>
+            </div>
+            <div id="annualLegend" class="legend"></div>
+          </div>
+          <div id="monthlyView" style="display: none">
+            <div class="section-title">
+              <div>
+                <b id="monthTitle"></b>
+                <div class="small">
+                  날짜를 클릭하면 해당 날짜의 체크리스트가 열립니다.
+                </div>
+              </div>
+              <div class="month-nav">
+                <button class="secondary" id="prevMonth">‹</button
+                ><button class="secondary" id="nextMonth">›</button>
+              </div>
+            </div>
+            <div id="monthGrid" class="month-grid"></div>
+          </div>
+        </section>
+        <section id="stats" class="page">
+          <div class="top">
+            <div class="title">
+              <h1>통계</h1>
+              <p>계획과 실제 진도를 비교합니다.</p>
+            </div>
+          </div>
+          <div class="grid">
+            <div class="card stat">
+              <div class="label">계획 달성률</div>
+              <div class="num" id="sPlan">0%</div>
+            </div>
+            <div class="card stat">
+              <div class="label">완료한 분량</div>
+              <div class="num" id="sDone">0</div>
+            </div>
+            <div class="card stat">
+              <div class="label">남은 분량</div>
+              <div class="num" id="sRemain">0</div>
+            </div>
+            <div class="card stat">
+              <div class="label">재계획 횟수</div>
+              <div class="num" id="sReschedule">0</div>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 18px">
+            <h2 style="font-size: 17px">목표별 통계</h2>
+            <table class="plan-table">
+              <thead>
+                <tr>
+                  <th>목표</th>
+                  <th>진도</th>
+                  <th>기간</th>
+                  <th>주기</th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody id="statsTable"></tbody>
+            </table>
+          </div>
+        </section>
+        <section id="settings" class="page">
+          <div class="top">
+            <div class="title">
+              <h1>설정</h1>
+              <p>캘린더 표시 범위, 카테고리, 스탬프를 설정합니다.</p>
+            </div>
+          </div>
+          <div class="card">
+            <h2 style="font-size: 17px">역산 기본값</h2>
+            <div class="form">
+              <div class="row">
+                <div class="field">
+                  <label>기본 하루 최대 분량</label
+                  ><input id="defaultLimit" type="number" min="1" />
+                </div>
+                <div class="field">
+                  <label>일요일 가중치</label
+                  ><input id="sunWeight" type="number" min="0" step="0.1" />
+                </div>
+              </div>
+              <button class="primary" id="saveSettings">기본값 저장</button>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 18px">
+            <div class="section-title">
+              <h2 style="font-size: 17px">연간 캘린더 표시 범위</h2>
+            </div>
+            <div class="row">
+              <div class="field">
+                <label>시작 월</label><input id="calStart" type="month" />
+              </div>
+              <div class="field">
+                <label>표시 개월 수 (최대 12개월)</label
+                ><input id="calMonths" type="number" min="1" max="12" />
+              </div>
+            </div>
+            <button class="primary" id="saveCalRange" style="margin-top: 12px">
+              캘린더 범위 저장
+            </button>
+          </div>
+          <div class="card" style="margin-top: 18px">
+            <div class="section-title">
+              <h2 style="font-size: 17px">카테고리</h2>
+              <button class="secondary" id="addCategory">＋ 카테고리</button>
+            </div>
+            <div id="categoryList"></div>
+          </div>
+          <div class="card" style="margin-top: 18px">
+            <h2 style="font-size: 17px">계획 스탬프 이미지</h2>
+            <div class="field">
+              <label>이미지 업로드</label
+              ><input id="stampUpload" type="file" accept="image/*" />
+              <div class="file-note">
+                내 목표에서 목표를 클릭하면 스탬프판이 표시됩니다. 완료한 칸을
+                클릭하면 이 이미지가 찍힙니다.
+              </div>
+              <img
+                id="stampPreview"
+                class="preview-img"
+                style="display: none"
+              />
+            </div>
+            <button class="secondary" id="clearStamp" style="margin-top: 10px">
+              스탬프 이미지 삭제
+            </button>
+          </div>
+        </section>
+      </main>
+    </div>
+    <!-- goal modal -->
+    <div class="modal-bg" id="goalModal">
+      <div class="modal">
+        <h2 id="goalModalTitle">새 목표 만들기</h2>
+        <p class="small">
+          마감일까지 선택한 주기에 해당하는 날에만 분량을 배분합니다.
+        </p>
+        <div class="form">
+          <div class="field">
+            <label>목표 이름</label
+            ><input id="gTitle" placeholder="예: 수학 문제집" />
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>단위</label
+              ><select id="gUnit">
+                <option value="PAGE">페이지</option>
+                <option value="LECTURE">강</option>
+                <option value="PROBLEM">문제</option>
+                <option value="CHAPTER">단원</option>
+                <option value="CUSTOM">직접 입력</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>직접 입력 단위명</label
+              ><input
+                id="gCustomUnit"
+                placeholder="예: 세트, 지문, 개념"
+                disabled
+              />
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>범위 시작</label
+              ><input
+                id="gRangeStart"
+                type="number"
+                min="1"
+                placeholder="예: 9"
+              />
+            </div>
+            <div class="field">
+              <label>범위 끝</label
+              ><input
+                id="gRangeEnd"
+                type="number"
+                min="1"
+                placeholder="예: 33"
+              />
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label
+                >총량 <span class="small">(범위 입력 시 자동 계산)</span></label
+              ><input id="gTotal" type="number" min="1" placeholder="24" />
+            </div>
+            <div class="field">
+              <label>카테고리</label
+              ><select id="gCategory"></select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>시작일</label><input id="gStart" type="date" />
+            </div>
+            <div class="field">
+              <label>마감일</label><input id="gEnd" type="date" />
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>하루 최대 분량</label
+              ><input id="gLimit" type="number" min="1" />
+            </div>
+            <div class="field">
+              <label>일요일 가중치</label
+              ><input id="gSun" type="number" min="0" step="0.1" />
+            </div>
+          </div>
+          <div class="field">
+            <label>계획 주기</label
+            ><select id="gRecurrence">
+              <option value="DAILY">매일</option>
+              <option value="ALTERNATE">격일</option>
+              <option value="WEEKLY">매주 같은 요일</option>
+              <option value="WEEKDAYS">평일(월~금)</option>
+              <option value="WEEKENDS">주말(토~일)</option>
+              <option value="CUSTOM_WEEKDAYS">요일 직접 선택</option>
+            </select>
+          </div>
+          <div class="field" id="weekdayField" style="display: none">
+            <label>요일 선택</label>
+            <div class="days" id="recurrenceDays">
+              <label><input type="checkbox" value="1" /> 월</label
+              ><label><input type="checkbox" value="2" /> 화</label
+              ><label><input type="checkbox" value="3" /> 수</label
+              ><label><input type="checkbox" value="4" /> 목</label
+              ><label><input type="checkbox" value="5" /> 금</label
+              ><label><input type="checkbox" value="6" /> 토</label
+              ><label><input type="checkbox" value="0" /> 일</label>
+            </div>
+          </div>
+          <div class="field" id="weeklyField" style="display: none">
+            <label>매주 반복할 요일</label
+            ><select id="gWeeklyDay">
+              <option value="1">월</option>
+              <option value="2">화</option>
+              <option value="3">수</option>
+              <option value="4">목</option>
+              <option value="5">금</option>
+              <option value="6">토</option>
+              <option value="0">일</option>
+            </select>
+          </div>
+          <div id="preview" class="warning" style="display: none"></div>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary" id="closeGoal">취소</button
+          ><button class="primary" id="createGoal">역산 계획 생성</button>
+        </div>
+      </div>
+    </div>
+    <!-- detail modal -->
+    <div class="modal-bg" id="detailModal">
+      <div class="modal">
+        <div class="section-title">
+          <div>
+            <h2 id="detailTitle" style="margin: 0"></h2>
+            <div class="small" id="detailSub"></div>
+          </div>
+          <button class="secondary" id="closeDetail">닫기</button>
+        </div>
+        <div id="detailList" class="detail-list"></div>
+      </div>
+    </div>
+    <!-- stamp modal -->
+    <div class="modal-bg" id="stampModal">
+      <div class="modal">
+        <div class="section-title">
+          <div>
+            <h2 id="stampTitle" style="margin: 0"></h2>
+            <div class="small" id="stampSub"></div>
+          </div>
+          <button class="secondary" id="closeStamp">닫기</button>
+        </div>
+        <div id="stampBoard" class="stamp-board"></div>
+      </div>
+    </div>
+
+    <script src="./index.js"></script>
+  </body>
+</html>
