@@ -472,24 +472,6 @@ function toggleTask(gid, date, from) {
   if (t.done >= t.amount) {
     t.done = 0;
     t.inProgress = true;
-    const next = new Date(`${date}T00:00:00`);
-    next.setDate(next.getDate() + 1);
-    const nextDate = iso(next);
-    if (!g.plan.some((item) => item.copiedFrom === `${date}:${from}` && item.date === nextDate)) {
-      const sameDateCount = g.plan.filter((item) => item.date === nextDate).length;
-      g.plan.push({
-        ...t,
-        date: nextDate,
-        from: t.from + (sameDateCount + 1) / 10000,
-        to: t.to + (sameDateCount + 1) / 10000,
-        displayFrom: t.displayFrom ?? t.from,
-        displayTo: t.displayTo ?? t.to,
-        done: 0,
-        inProgress: false,
-        copiedFrom: `${date}:${from}`,
-      });
-      g.plan.sort((a, b) => a.date.localeCompare(b.date) || a.from - b.from);
-    }
   } else if (t.inProgress) {
     t.inProgress = false;
     t.done = 0;
