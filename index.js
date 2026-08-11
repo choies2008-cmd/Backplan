@@ -97,7 +97,10 @@ function unitName(g) {
       ] || g.unit;
 }
 function taskRange(t) {
-  return t.from === t.to ? String(t.from) : `${t.from}~${t.to}`;
+  if (t.displayLabel) return String(t.displayLabel);
+  const from = t.displayFrom ?? t.from,
+    to = t.displayTo ?? t.to;
+  return from === to ? String(from) : `${from}~${to}`;
 }
 function category(g) {
   return (
@@ -458,14 +461,39 @@ function goalRow(g) {
 }
 function taskHtml(t) {
   let done = t.done >= t.amount,
+    inProgress = !!t.inProgress,
     c = category(t.g);
-  return `<div class="task ${done ? "done" : ""}" onclick="toggleTask('${t.g.id}','${t.date}',${t.from})"><button class="check" type="button"></button><div class="txt"><b>${esc(t.g.title)}</b><div class="small"><span style="color:${c.color}">●</span> ${taskRange(t)}${esc(unitName(t.g))}</div></div><button class="secondary task-move" type="button" onclick="event.stopPropagation();openTaskMove('${t.g.id}','${t.date}',${t.from})">날짜 이동</button></div>`;
+  return `<div class="task ${done ? "done" : ""} ${inProgress ? "in-progress" : ""}" onclick="toggleTask('${t.g.id}','${t.date}',${t.from})"><button class="check" type="button" aria-label="계획 상태 변경"></button><div class="txt"><b>${esc(t.g.title)}</b><div class="small"><span style="color:${c.color}">●</span> ${taskRange(t)}${esc(unitName(t.g))}${inProgress ? ' · 진행 중' : ''}</div></div><button class="secondary task-menu" type="button" aria-label="일일 계획 메뉴" onclick="event.stopPropagation();openDailyTaskMenu('${t.g.id}','${t.date}',${t.from})">•••</button></div>`;
 }
 function toggleTask(gid, date, from) {
   let g = state.goals.find((x) => x.id === gid),
     t = g?.plan.find((x) => x.date === date && x.from === from);
   if (!t) return;
-  t.done = t.done >= t.amount ? 0 : t.amount;
+  if (t.done >= t.amount) {
+    t.done = 0;
+    t.inProgress = true;
+    const next = new Date(`${date}T00:00:00`);
+    next.setDate(next.getDate() + 1);
+    const nextDate = iso(next);
+    if (!g.plan.some((item) => item.copiedFrom === `${date}:${from}` && item.date === nextDate)) {
+      const sameDateCount = g.plan.filter((item) => item.date === nextDate).length;
+      g.plan.push({
+        ...t,
+        date: nextDate,
+        from: t.from + (sameDateCount + 1) / 10000,
+        to: t.to + (sameDateCount + 1) / 10000,
+        displayFrom: t.displayFrom ?? t.from,
+        displayTo: t.displayTo ?? t.to,
+        done: 0,
+        inProgress: false,
+        copiedFrom: `${date}:${from}`,
+      });
+      g.plan.sort((a, b) => a.date.localeCompare(b.date) || a.from - b.from);
+    }
+  } else if (t.inProgress) {
+    t.inProgress = false;
+    t.done = 0;
+  } else t.done = t.amount;
   save();
 }
 function renderCalendar() {
@@ -1537,7 +1565,7 @@ render();
                 const right = (barTo.getDate() / lastMonthDays) * 100;
                 const width = (lastIndex - firstIndex) * 100 + right - left;
                 const tip = `${g.title} · ${fmtDate(g.start)} ~ ${fmtDate(g.end)} · ${g.rangeStart || g.total}~${g.rangeEnd || g.total}${unitName(g)} · ${recurrenceLabel(g)} · ${category(g).name}`;
-                return `<div class="plan-bar curriculum-plan-bar" style="left:calc(${left}% + 5px);width:max(8px, calc(${width}% - 10px));background:${alpha(category(g).color, 0.3)}" title="${esc(tip)}" onclick="event.stopPropagation();openPlanBarInfo('${g.id}')"><span class="plan-bar-label">${esc(g.title)}</span></div>`;
+                return `<div class="plan-bar progress-bar curriculum-plan-bar" style="left:calc(${left}% + 5px);width:max(8px, calc(${width}% - 10px));--plan-color:${category(g).color};--plan-progress:${goalProgress(g)}%" title="${esc(tip)}" onclick="event.stopPropagation();openPlanBarInfo('${g.id}')"><span class="plan-bar-label">${esc(g.title)}</span></div>`;
               })
               .join("");
             html += `<div class="cell">${bars}</div>`;
@@ -1561,7 +1589,7 @@ render();
               r.type === "curriculumLane"
                 ? category(r.gs[0]).color
                 : category(r.g).color;
-            html += `<div class="cell"><div class="plan-bar" style="left:calc(${left}% + 5px);right:calc(${100 - right}% + 5px);background:${alpha(col, 0.3)}" title="${esc(title)}" onclick="event.stopPropagation();openPlanBarInfo('${r.g.id}')"></div></div>`;
+            html += `<div class="cell"><div class="plan-bar progress-bar" style="left:calc(${left}% + 5px);right:calc(${100 - right}% + 5px);--plan-color:${col};--plan-progress:${goalProgress(r.g)}%" title="${esc(title)}" onclick="event.stopPropagation();openPlanBarInfo('${r.g.id}')"></div></div>`;
           } else html += '<div class="cell"></div>';
         });
       });
@@ -1629,7 +1657,7 @@ render();
             .map((t) => {
               let c = category(t.g),
                 done = t.done >= t.amount;
-              return `<div class="detail-item"><input type="checkbox" ${done ? "checked" : ""} onchange="toggleTask('${t.g.id}','${t.date}',${t.from})"><div style="flex:1"><b>${esc(t.g.title)}</b><div class="small">${taskRange(t)}${esc(unitName(t.g))} · ${esc(recurrenceLabel(t.g))}</div><div class="small" style="color:${c.color}">● ${esc(c.name)}</div></div><button class="secondary task-move" type="button" onclick="openTaskMove('${t.g.id}','${t.date}',${t.from})">날짜 이동</button></div>`;
+              return `<div class="detail-item"><input type="checkbox" ${done ? "checked" : ""} onchange="toggleTask('${t.g.id}','${t.date}',${t.from})"><div style="flex:1"><b>${esc(t.g.title)}</b><div class="small">${taskRange(t)}${esc(unitName(t.g))} · ${esc(recurrenceLabel(t.g))}${t.inProgress ? ' · 진행 중' : ''}</div><div class="small" style="color:${c.color}">● ${esc(c.name)}</div></div><button class="secondary task-menu" type="button" onclick="event.stopPropagation();openDailyTaskMenu('${t.g.id}','${t.date}',${t.from})" aria-label="일일 계획 메뉴">•••</button></div>`;
             })
             .join("")
         : '<div class="empty">이 날짜에는 표시하도록 선택한 계획이 없습니다.</div>';
@@ -2184,7 +2212,7 @@ render();
       const flexibleTags = flexibleCandidates(d).map((g) =>
         `<div class="week-plan flexible-week-plan">${esc(g.title)} <span>＋</span></div>`).join("");
       const weekday = ["월","화","수","목","금","토","일"][new Date(d + "T00:00:00").getDay() === 0 ? 6 : new Date(d + "T00:00:00").getDay() - 1];
-      return `<div class="week-day ${d === dayIso(new Date()) ? "today" : ""}" role="button" tabindex="0" onclick="openDayDetail('${d}')" onkeydown="if(event.key==='Enter'||event.key===' '){openDayDetail('${d}')}"><div class="week-day-head"><span>${weekday}</span><b>${Number(d.slice(-2))}</b></div><div class="week-plan-list">${taskTags || ""}${flexibleTags || ""}</div></div>`;
+      return `<div class="week-day ${d === dayIso(new Date()) ? "today" : ""}" role="button" tabindex="0" onclick="selectDashboardDate('${d}')" onkeydown="if(event.key==='Enter'||event.key===' '){selectDashboardDate('${d}')}"><div class="week-day-head"><span>${weekday}</span><b>${Number(d.slice(-2))}</b></div><div class="week-plan-list">${taskTags || ""}${flexibleTags || ""}</div></div>`;
     }).join("");
     const list = document.getElementById("goalList");
     if (list) {
@@ -2193,6 +2221,11 @@ render();
       list.innerHTML = `<div class="dashboard-week">${week}</div><div class="small" style="margin-top:10px">일정을 미리 확인하고, 날짜를 누르면 전체 일별 계획을 볼 수 있습니다.</div>`;
     }
   }
+
+  window.selectDashboardDate = function (date) {
+    state._dashboardDate = date;
+    renderDashboardExtras();
+  };
 
   const previousRender = window.render;
   window.render = function () { ensureExtraUI(); previousRender(); renderDashboardExtras(); };
@@ -2242,6 +2275,148 @@ render();
   };
   ensureExtraUI();
   window.render();
+})();
+
+// Per-day actions live in a compact overflow menu so the daily list stays tidy.
+(function () {
+  function getDailyTaskMenu() {
+    let dialog = document.getElementById("dailyTaskMenuDialog");
+    if (dialog) return dialog;
+    dialog = document.createElement("div");
+    dialog.id = "dailyTaskMenuDialog";
+    dialog.className = "modal-bg";
+    dialog.innerHTML = `<div class="modal" style="max-width:360px">
+      <div class="section-title"><div><h2 style="margin:0">일일 계획 메뉴</h2><div class="small" id="dailyTaskMenuDescription"></div></div><button class="secondary" type="button" id="dailyTaskMenuClose">닫기</button></div>
+      <div style="display:grid;gap:8px"><button class="secondary" type="button" id="dailyTaskMove">날짜 변경</button><button class="secondary" type="button" id="dailyTaskClone">계획 복제</button><button class="secondary" type="button" id="dailyTaskSplit">계획 분할</button></div>
+    </div>`;
+    document.body.appendChild(dialog);
+    const close = () => dialog.classList.remove("open");
+    dialog.querySelector("#dailyTaskMenuClose").onclick = close;
+    dialog.onclick = (event) => { if (event.target === dialog) close(); };
+    dialog.querySelector("#dailyTaskMove").onclick = () => {
+      const { goalId, date, from } = dialog.dataset;
+      close();
+      window.openTaskMove(goalId, date, Number(from));
+    };
+    dialog.querySelector("#dailyTaskClone").onclick = () => {
+      const goal = state.goals.find((item) => item.id === dialog.dataset.goalId);
+      const source = goal?.plan?.find((item) => item.date === dialog.dataset.date && item.from === Number(dialog.dataset.from));
+      if (!goal || !source) return close();
+      const sameDateCount = goal.plan.filter((item) => item.date === source.date).length;
+      goal.plan.push({
+        ...source,
+        from: source.from + (sameDateCount + 1) / 10000,
+        to: source.to + (sameDateCount + 1) / 10000,
+        displayFrom: source.displayFrom ?? source.from,
+        displayTo: source.displayTo ?? source.to,
+        done: 0,
+        inProgress: false,
+        copiedFrom: undefined,
+      });
+      goal.plan.sort((a, b) => a.date.localeCompare(b.date) || a.from - b.from);
+      close();
+      save();
+    };
+    dialog.querySelector("#dailyTaskSplit").onclick = () => {
+      const { goalId, date, from } = dialog.dataset;
+      close();
+      window.openDailyTaskSplit(goalId, date, Number(from));
+    };
+    return dialog;
+  }
+  function getDailyTaskSplitDialog() {
+    let dialog = document.getElementById("dailyTaskSplitDialog");
+    if (dialog) return dialog;
+    dialog = document.createElement("div");
+    dialog.id = "dailyTaskSplitDialog";
+    dialog.className = "modal-bg";
+    dialog.innerHTML = `<div class="modal" style="max-width:400px">
+      <div class="section-title"><div><h2 style="margin:0">계획 분할</h2><div class="small" id="dailyTaskSplitDescription"></div></div><button class="secondary" type="button" id="dailyTaskSplitClose">닫기</button></div>
+      <div class="field"><label for="dailyTaskSplitCount">나눌 개수</label><input id="dailyTaskSplitCount" type="number" min="2" max="20" value="2" /></div>
+      <div class="small" style="margin-top:8px">각 항목은 원래 일일 계획 분량을 동일하게 나누어 가집니다.</div>
+      <div class="modal-actions"><button class="secondary" type="button" id="dailyTaskSplitCancel">취소</button><button class="primary" type="button" id="dailyTaskSplitSave">분할</button></div>
+    </div>`;
+    document.body.appendChild(dialog);
+    const close = () => dialog.classList.remove("open");
+    dialog.querySelector("#dailyTaskSplitClose").onclick = close;
+    dialog.querySelector("#dailyTaskSplitCancel").onclick = close;
+    dialog.onclick = (event) => { if (event.target === dialog) close(); };
+    dialog.querySelector("#dailyTaskSplitSave").onclick = () => {
+      const count = Math.max(2, Math.min(20, Math.floor(Number(dialog.querySelector("#dailyTaskSplitCount").value) || 2)));
+      const goal = state.goals.find((item) => item.id === dialog.dataset.goalId);
+      const sourceIndex = goal?.plan?.findIndex((item) => item.date === dialog.dataset.date && item.from === Number(dialog.dataset.from));
+      if (!goal || sourceIndex < 0) return close();
+      const source = goal.plan[sourceIndex];
+      const baseLabel = taskRange(source);
+      const partAmount = source.amount / count;
+      const partDone = source.done / count;
+      const replacements = Array.from({ length: count }, (_, index) => {
+        const offset = index / 10000;
+        return {
+          ...source,
+          from: source.from + offset,
+          to: source.to + offset,
+          displayFrom: source.displayFrom ?? source.from,
+          displayTo: source.displayTo ?? source.to,
+          displayLabel: `${baseLabel}-${index + 1}`,
+          amount: partAmount,
+          done: partDone,
+          inProgress: !!source.inProgress && partDone < partAmount,
+          copiedFrom: undefined,
+          splitFrom: `${source.date}:${source.from}`,
+        };
+      });
+      goal.plan.splice(sourceIndex, 1, ...replacements);
+      goal.plan.sort((a, b) => a.date.localeCompare(b.date) || a.from - b.from);
+      close();
+      save();
+    };
+    dialog.querySelector("#dailyTaskSplitCount").onkeydown = (event) => {
+      if (event.key === "Enter") dialog.querySelector("#dailyTaskSplitSave").click();
+      if (event.key === "Escape") close();
+    };
+    return dialog;
+  }
+  window.openDailyTaskMenu = function (goalId, date, from) {
+    const goal = state.goals.find((item) => item.id === goalId);
+    const task = goal?.plan?.find((item) => item.date === date && item.from === Number(from));
+    if (!goal || !task) return;
+    const dialog = getDailyTaskMenu();
+    dialog.dataset.goalId = goalId;
+    dialog.dataset.date = date;
+    dialog.dataset.from = from;
+    dialog.querySelector("#dailyTaskMenuDescription").textContent = `${goal.title} · ${fmtDate(date)} · ${taskRange(task)}${unitName(goal)}`;
+    dialog.classList.add("open");
+  };
+  window.openDailyTaskSplit = function (goalId, date, from) {
+    const goal = state.goals.find((item) => item.id === goalId);
+    const task = goal?.plan?.find((item) => item.date === date && item.from === Number(from));
+    if (!goal || !task) return;
+    const dialog = getDailyTaskSplitDialog();
+    dialog.dataset.goalId = goalId;
+    dialog.dataset.date = date;
+    dialog.dataset.from = from;
+    dialog.querySelector("#dailyTaskSplitDescription").textContent = `${goal.title} ${taskRange(task)}${unitName(goal)}`;
+    dialog.querySelector("#dailyTaskSplitCount").value = 2;
+    dialog.classList.add("open");
+    setTimeout(() => dialog.querySelector("#dailyTaskSplitCount").focus(), 0);
+  };
+
+  // Calendar detail checkboxes use their native indeterminate state for 진행 중.
+  const previousOpenDayDetail = window.openDayDetail;
+  window.openDayDetail = function (date) {
+    previousOpenDayDetail(date);
+    const tasks = typeof window.selectedGoals === "function"
+      ? window.selectedGoals().flatMap((goal) => (goal.plan || []).filter((task) => task.date === date).map((task) => ({ ...task, g: goal })))
+      : [];
+    document.querySelectorAll("#detailList .detail-item input[type=checkbox]").forEach((input, index) => {
+      if (tasks[index]?.inProgress) {
+        input.checked = false;
+        input.indeterminate = true;
+        input.title = "진행 중";
+      }
+    });
+  };
 })();
 (function () {
   if (typeof state === "undefined") return;
@@ -2729,4 +2904,125 @@ window.deleteFolder =
     };
     actions.insertBefore(edit, actions.firstChild);
   };
+})();
+
+// Display-only category folders: categories are never changed by this feature.
+// They simply keep plans together regardless of the selected sort criterion.
+(function () {
+  if (typeof state === "undefined") return;
+
+  state.settings.categoryFolderExpanded ||= {};
+
+  const persistDisplayState = () => {
+    localStorage.setItem(KEY, JSON.stringify(state));
+    window.render();
+  };
+  const valueFor = (goal, criterion) => {
+    if (criterion === "created") return new Date(goal.createdAt || 0).getTime();
+    if (criterion === "start") return new Date(goal.start || "9999-12-31").getTime();
+    if (criterion === "end") return new Date(goal.end || "9999-12-31").getTime();
+    if (criterion === "type") return goal.kind === "curriculum" ? 0 : goal.kind === "general" ? 1 : 2;
+    return goal.title || "";
+  };
+  const compareGoals = (a, b, criterion) => {
+    const av = valueFor(a, criterion), bv = valueFor(b, criterion);
+    const result = typeof av === "string"
+      ? av.localeCompare(bv, "ko")
+      : av - bv;
+    return result || (a.title || "").localeCompare(b.title || "", "ko");
+  };
+  const categoryGroups = (goals, criterion) => {
+    const groups = new Map();
+    goals.forEach((goal) => {
+      const c = category(goal);
+      if (!groups.has(c.id)) groups.set(c.id, { category: c, goals: [] });
+      groups.get(c.id).goals.push(goal);
+    });
+    return [...groups.values()]
+      .map((group) => ({ ...group, goals: group.goals.sort((a, b) => compareGoals(a, b, criterion)) }))
+      .sort((a, b) => compareGoals(a.goals[0], b.goals[0], criterion) || a.category.name.localeCompare(b.category.name, "ko"));
+  };
+  const groupKey = (scope, categoryId) => `${scope}:${categoryId}`;
+  window.toggleCategoryDisplay = (scope, categoryId) => {
+    const key = groupKey(scope, categoryId);
+    state.settings.categoryFolderExpanded[key] = state.settings.categoryFolderExpanded[key] === false;
+    persistDisplayState();
+  };
+  const categoryFolder = (scope, group) => {
+    const key = groupKey(scope, group.category.id);
+    const open = state.settings.categoryFolderExpanded[key] !== false;
+    return `<div class="category-folder-row">
+      <div class="category-folder-head">
+        <button class="collapse-btn" type="button" onclick="toggleCategoryDisplay('${scope}','${group.category.id}')" aria-label="카테고리 ${open ? "접기" : "펼치기"}">${open ? "▼" : "▶"}</button>
+        <span class="dot category-dot" style="background:${group.category.color}"></span>
+        <b>${esc(group.category.name)}</b><span class="small">${group.goals.length}개 계획</span>
+      </div>
+      ${open ? `<div class="category-folder-children">${group.goals.map((goal) => window.goalRow(goal)).join("")}</div>` : ""}
+    </div>`;
+  };
+  const categoryFolderList = (scope, goals, criterion) =>
+    categoryGroups(goals, criterion).map((group) => categoryFolder(scope, group)).join("");
+
+  function renderCategoryGoalManagement() {
+    const root = document.getElementById("allGoals");
+    if (!root) return;
+    const criterion = state.settings.goalSort || "created";
+    const folders = state.folders || [];
+    const assigned = new Set();
+    const folderHtml = folders.map((folder) => {
+      const ids = new Set(folder.planIds || []);
+      const plans = state.goals.filter((goal) => goal.folderId === folder.id || ids.has(goal.id));
+      plans.forEach((goal) => assigned.add(goal.id));
+      const open = state.settings.goalFolderExpanded?.[folder.id] !== false;
+      return {
+        folder,
+        plans,
+        order: plans.length ? valueFor([...plans].sort((a, b) => compareGoals(a, b, criterion))[0], criterion) : Infinity,
+        html: `<div class="folder-row goal-folder-row">
+          <div class="folder-head"><div style="display:flex;align-items:center;gap:5px"><button class="collapse-btn" type="button" onclick="toggleGoalFolder('${folder.id}')">${open ? "▼" : "▶"}</button><span class="folder-title">📁 ${esc(folder.name)}</span><span class="small">${plans.length}개 계획</span></div><div><button class="secondary" onclick="renameFolder('${folder.id}')">수정</button> <button class="secondary danger" onclick="deleteFolder('${folder.id}')">삭제</button></div></div>
+          ${open ? `<div class="child-list">${plans.length ? categoryFolderList(`folder-${folder.id}`, plans, criterion) : '<div class="small">폴더가 비어 있습니다.</div>'}</div>` : ""}
+        </div>`,
+      };
+    });
+    const standalone = state.goals.filter((goal) => !assigned.has(goal.id));
+    const entries = folderHtml.map((entry) => ({ ...entry, type: "folder" }));
+    if (standalone.length) entries.push({ type: "standalone", order: valueFor([...standalone].sort((a, b) => compareGoals(a, b, criterion))[0], criterion), html: `<div class="standalone-category-list">${categoryFolderList("root", standalone, criterion)}</div>` });
+    entries.sort((a, b) => (typeof a.order === "string" ? a.order.localeCompare(b.order, "ko") : a.order - b.order));
+    root.innerHTML = entries.length ? entries.map((entry) => entry.html).join("") : '<div class="empty">목표 또는 폴더를 추가해 보세요.</div>';
+  }
+
+  const previousMonth = window.renderMonth;
+  window.renderMonth = function () {
+    previousMonth();
+    const month = state._month || state.settings.calendarStart;
+    document.querySelectorAll("#monthGrid .mday").forEach((cell) => {
+      const day = cell.querySelector(".mdate");
+      if (!day) return;
+      const date = `${month}-${String(parseInt(day.textContent, 10)).padStart(2, "0")}`;
+      const tasks = window.selectedGoals().flatMap((goal) => (goal.plan || []).filter((task) => task.date === date).map((task) => ({ ...task, g: goal })));
+      cell.querySelectorAll(".mini-plan").forEach((plan, index) => plan.classList.toggle("done-calendar-task", !!tasks[index] && tasks[index].done >= tasks[index].amount));
+    });
+  };
+  const previousDayDetail = window.openDayDetail;
+  window.openDayDetail = function (date) {
+    previousDayDetail(date);
+    document.querySelectorAll("#detailList .detail-item").forEach((item) => {
+      item.classList.toggle("done-calendar-task", !!item.querySelector('input[type="checkbox"]:checked'));
+    });
+  };
+  function decorateDashboardWeek() {
+    document.querySelectorAll(".week-day").forEach((cell) => {
+      const date = cell.getAttribute("onclick")?.match(/'([^']+)'/)?.[1];
+      if (!date) return;
+      const tasks = state.goals.flatMap((goal) => (goal.plan || []).filter((task) => task.date === date).map((task) => ({ ...task, g: goal })));
+      cell.querySelectorAll(".week-plan").forEach((plan, index) => plan.classList.toggle("done-calendar-task", !!tasks[index] && tasks[index].done >= tasks[index].amount));
+    });
+  }
+  const previousRender = window.render;
+  window.render = function () {
+    previousRender();
+    renderCategoryGoalManagement();
+    decorateDashboardWeek();
+  };
+  window.render();
 })();

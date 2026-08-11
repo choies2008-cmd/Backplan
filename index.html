@@ -8,13 +8,12 @@
   </head>
   <body>
     <div class="app">
+      <div class="top-logo logo">Back<span>Plan</span></div>
       <aside class="side">
-        <div class="logo">Back<span>Plan</span></div>
         <nav class="nav">
           <button class="active" data-page="dashboard">▣ &nbsp; 대시보드</button
           ><button data-page="goals">◎ &nbsp; 내 목표</button
           ><button data-page="calendar">▦ &nbsp; 캘린더</button
-          ><button data-page="stats">◒ &nbsp; 통계</button
           ><button data-page="settings">⚙ &nbsp; 설정</button>
         </nav>
       </aside>
@@ -121,7 +120,7 @@
             <div id="monthGrid" class="month-grid"></div>
           </div>
         </section>
-        <section id="stats" class="page">
+        <section id="stats" class="page" hidden>
           <div class="top">
             <div class="title">
               <h1>통계</h1>
