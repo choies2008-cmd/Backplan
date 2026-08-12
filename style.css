@@ -241,6 +241,14 @@ button {
 .task .txt {
   flex: 1;
 }
+.nav-symbol { display:none; }
+.task.in-progress .check:after {
+  content: "△";
+  inset: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
 .task-move {
   flex: none;
   padding: 6px 9px;
@@ -535,14 +543,6 @@ button {
   border: 1px solid var(--line);
   border-radius: 10px;
 }
-.detail-item .stamp-mini {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  overflow: hidden;
-  background: #f0f1f5;
-  flex: none;
-}
 .detail-item img {
   width: 100%;
   height: 100%;
@@ -552,51 +552,6 @@ button {
   width: 19px;
   height: 19px;
   flex: none;
-}
-/* stamp board */
-.stamp-board {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
-  gap: 8px;
-  margin-top: 12px;
-}
-.stamp-cell {
-  min-height: 82px;
-  border: 1px solid var(--line);
-  background: #fff;
-  border-radius: 10px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  overflow: hidden;
-}
-.stamp-cell:hover {
-  border-color: #a9c3fb;
-}
-.stamp-cell .stamp-img {
-  width: 58px;
-  height: 58px;
-  object-fit: contain;
-  opacity: 0.95;
-}
-.stamp-cell .stamp-num {
-  position: absolute;
-  top: 5px;
-  left: 6px;
-  font-size: 10px;
-  color: var(--muted);
-  font-weight: 700;
-}
-.stamp-cell.done {
-  background: #faf8ff;
-}
-.stamp-cell.done:after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgba(95, 143, 240, 0.08);
 }
 .category-row {
   display: grid;
@@ -640,12 +595,11 @@ button {
     font-size: 22px;
   }
   .nav button {
-    font-size: 0;
     text-align: center;
   }
-  .nav button:first-letter {
-    font-size: 18px;
-  }
+  .nav-text { display:none; }
+  .nav-symbol { display:inline; font-size:18px; line-height:1; }
+  .nav-symbol::after { content:"•"; }
   .main {
     margin-left: 72px;
     width: calc(100% - 72px);
@@ -764,8 +718,8 @@ button {
 #taskDate { display:none; }
 .dashboard-week { display:grid; grid-template-columns:repeat(7,1fr); gap:7px; }
 .week-day { min-height:166px; padding:9px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--text); cursor:pointer; display:flex; flex-direction:column; gap:8px; overflow:hidden; }
-.week-day:hover { border-color:var(--primary); background:#fafaff; }
-.week-day.today { border-color:var(--primary); box-shadow:inset 0 0 0 1px var(--primary); }
+.week-day.selected { border-color:#c8ccd3; background:#fff; box-shadow:inset 0 0 0 1px #c8ccd3; }
+.week-day.today, .week-day.today.selected { border-color:#5f8ff0; background:#fff; box-shadow:inset 0 0 0 1px #5f8ff0; }
 .week-day-head { display:flex; align-items:center; justify-content:space-between; }
 .week-day-head span { font-size:12px; color:var(--muted); }
 .week-day b { font-size:18px; }
@@ -780,12 +734,32 @@ button {
 .flexible-add { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 2px; color:#68707b; }
 .flexible-add small { display:block; margin-top:2px; }
 .flexible-detail-heading { margin:15px 0 4px; padding-top:12px; border-top:1px dashed var(--line); font-size:13px; color:#68707b; font-weight:700; }
-#dashboard.active { height:calc(100vh - 60px); overflow:hidden; }
+#dashboard.active { min-height:0; overflow:hidden; display:flex; flex-direction:column; }
 #dashboard.active .layout { min-height:0; flex:1; }
-#dashboard.active .layout > .card:nth-child(2) { min-height:0; display:flex; flex-direction:column; }
+#dashboard.active .layout > .card { min-height:0; overflow:hidden; display:flex; flex-direction:column; }
 #dashboard.active #todayTasks { min-height:0; flex:1; overflow-y:auto; padding-right:5px; }
-@media (min-width:901px) { body:has(#dashboard.active) { overflow:hidden; } #dashboard.active { display:flex; flex-direction:column; } }
-@media (max-width:900px) { #dashboard.active { height:auto; overflow:visible; } }
+@media (max-width:900px) {
+  body:has(#dashboard.active) { overflow:hidden; }
+  .main:has(#dashboard.active) { height:100dvh; overflow:hidden; }
+  #dashboard.active { height:calc(100dvh - 36px); }
+  #dashboard.active .top, #dashboard.active .grid { flex:none; }
+  #dashboard.active .layout { min-height:0; flex:1; overflow:hidden; }
+  #dashboard.active .layout { grid-template-rows:minmax(0, 1fr) minmax(0, 1fr); }
+  #dashboard.active #goalList { min-height:0; flex:1; overflow:hidden; display:flex; flex-direction:column; }
+  #dashboard.active .dashboard-week { height:auto; min-height:0; flex:1; }
+  #dashboard.active .week-day { min-height:0; height:100%; }
+  #dashboard.active .week-plan-list, #dashboard.active #todayTasks { overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+}
+.settings-menu { display:grid; gap:12px; max-width:620px; }
+.settings-option { width:100%; display:flex; align-items:center; justify-content:space-between; text-align:left; color:var(--text); font-size:16px; font-weight:700; cursor:pointer; }
+.settings-option:hover { border-color:#c8ccd3; }
+.settings-option b { color:var(--muted); font-size:24px; font-weight:400; line-height:1; }
+@media (max-width:560px) {
+  #dashboard.active { height:calc(100dvh - 24px); }
+  #dashboard.active .grid { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+  #dashboard.active .stat { padding:10px; }
+  #dashboard.active .stat .num { font-size:22px; margin-top:4px; }
+}
 @media (max-width:640px) { .dashboard-week { grid-template-columns:repeat(2,1fr); gap:6px; } .week-day { min-height:120px; padding:7px; } .week-day b { font-size:16px; } .dashboard-goal-actions { gap:5px; } .dashboard-goal-actions button { padding:8px 9px; } }
 @media (max-width:560px) { .month-grid { grid-template-columns:repeat(7, minmax(0, 1fr)); gap:2px; } .mday { min-height:92px; padding:4px; border-radius:6px; } .month-dow { min-width:0; padding:4px 0; overflow:hidden; } .mini-plan { margin-top:3px; padding:3px; font-size:9px; } }
 .folder-row .folder-icon {
@@ -930,7 +904,7 @@ button {
     border-radius: 14px;
     box-shadow: var(--shadow);
   }
-  .top-logo { position: fixed; z-index: 31; top: 25px; left: 30px; padding: 0; }
+  .top-logo { position: absolute; z-index: 31; top: 25px; left: 30px; padding: 0; }
   .nav { display: flex; align-items: center; gap: 3px; }
   .nav button { width: auto; margin: 0; padding: 9px 14px; white-space: nowrap; }
   .main { margin-left: 0; width: 100%; max-width: 1600px; padding: 88px 30px 30px; }
@@ -945,10 +919,13 @@ button {
 .week-plan.done-calendar-task { background: #eef0f2 !important; }
 .detail-item.done-calendar-task b, .detail-item.done-calendar-task .small { color: #8a9099 !important; text-decoration: line-through; }
 @media (min-width:901px) {
-  body:has(#dashboard.active) { overflow: auto; }
-  #dashboard.active { height: auto; overflow: visible; display: block; }
-  #dashboard.active .layout, #dashboard.active .layout > .card:nth-child(2) { min-height: auto; }
-  #dashboard.active #todayTasks { max-height: none; overflow: visible; }
+  body:has(#dashboard.active) { overflow:hidden; }
+  .main:has(#dashboard.active) { height:100dvh; overflow:hidden; }
+  #dashboard.active { height:calc(100dvh - 118px); }
+  #dashboard.active #goalList { min-height:0; flex:1; overflow:hidden; display:flex; flex-direction:column; }
+  #dashboard.active .dashboard-week { height:auto; min-height:0; flex:1; }
+  #dashboard.active .week-day { min-height:0; }
+  #dashboard.active .week-plan-list, #dashboard.active #todayTasks { overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
 }
 
 /* Progress fill is intentionally darker than the category-tinted remainder. */
@@ -959,10 +936,11 @@ button {
 }
 @media (max-width: 900px) { .top-logo { display: none; } }
 @media (max-width: 560px) {
-  #settings .row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  #settings .field { min-width: 0; }
-  #settings .field input, #settings .field select { min-width: 0; max-width: 100%; }
+  #settings .row, .settings-dialog .row { grid-template-columns:repeat(2, minmax(0, 1fr)); gap: 10px; }
+  #settings .field, .settings-dialog .field { min-width: 0; }
+  #settings .field input, #settings .field select, .settings-dialog .field input, .settings-dialog .field select { min-width: 0; max-width: 100%; height:42px; }
+  #settings input[type="month"], #settings input[type="number"], .settings-dialog input[type="month"], .settings-dialog input[type="number"] { appearance:none; -webkit-appearance:none; border-radius:10px; }
   #settings .category-row { grid-template-columns: minmax(0, 1fr) 46px max-content; gap: 6px; }
-  #settings .color-input { width: 46px !important; height: 36px; min-width: 46px; }
+  #settings .color-input { appearance:none; -webkit-appearance:none; width:46px !important; height:36px; min-width:46px; max-width:46px; padding:2px !important; border-radius:8px; overflow:hidden; }
   #settings .category-row .secondary { padding: 8px 9px; white-space: nowrap; }
 }

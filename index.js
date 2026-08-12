@@ -2,18 +2,23 @@ const KEY = "backplan_demo_v2";
 let state = JSON.parse(localStorage.getItem(KEY) || "null") || {
   goals: [],
   settings: {
-    limit: 20,
-    sun: 0.7,
     calendarStart: new Date().toISOString().slice(0, 7),
     calendarMonths: 12,
     categories: [{ id: "default", name: "기본", color: "#5f8ff0" }],
-    stampImage: "",
   },
   reschedules: 0,
 };
 state.settings.categories = state.settings.categories || [
   { id: "default", name: "기본", color: "#5f8ff0" },
 ];
+delete state.settings.limit;
+delete state.settings.sun;
+delete state.settings.stampImage;
+state.goals.forEach((g) => {
+  delete g.limit;
+  delete g.sun;
+});
+localStorage.setItem(KEY, JSON.stringify(state));
 // Move the built-in category with the app theme while leaving user-made
 // category colors untouched.
 const builtInCategory = state.settings.categories.find((c) => c.id === "default");
@@ -146,7 +151,7 @@ function eligible(d, g) {
   if (g.recurrence === "WEEKENDS") return wd === 0 || wd === 6;
   return (g.recurrenceDays || []).includes(wd);
 }
-function makePlan(total, start, end, limit, sun, g, rangeStart) {
+function makePlan(total, start, end, g, rangeStart) {
   let allDays = dates(start, end).filter((d) => eligible(d, g));
   if (!allDays.length)
     return { error: "선택한 주기로 가능한 계획일이 없습니다." };
@@ -173,11 +178,11 @@ function makePlan(total, start, end, limit, sun, g, rangeStart) {
 
   // 일요일 가중치 설정은 같은 총량을 배분할 때 참고하되, 사용 날짜 자체를
   // 목표 종료일까지 억지로 늘리는 용도로는 사용하지 않는다.
-  let maxPerDay = Math.max(1, limit || 1);
-  if (amounts.some((a) => a > maxPerDay))
+  /* Removed: per-day maximum limit.
     return {
       error: `하루 최대 ${maxPerDay}${unitName(g)}을 초과합니다. 기간을 늘리거나 하루 최대 분량을 높여주세요.`,
     };
+  */
 
   let cursor = Number(rangeStart || g.rangeStart || 1),
     out = [];
@@ -217,8 +222,6 @@ function goalInput() {
     rangeEnd: re || (rs || 1) + total - 1,
     start: $("#gStart").value,
     end: $("#gEnd").value,
-    limit: +$("#gLimit").value,
-    sun: +$("#gSun").value,
     categoryId: $("#gCategory").value,
     recurrence: $("#gRecurrence").value,
     weeklyDay: +$("#gWeeklyDay").value,
@@ -231,8 +234,6 @@ function buildPlanForInput(v, g, rangeStart) {
     v.total,
     v.start,
     v.end,
-    v.limit,
-    v.sun,
     g,
     rangeStart ?? v.rangeStart,
   );
@@ -293,8 +294,6 @@ function openEditGoal(id) {
   $("#gCategory").value = g.categoryId;
   $("#gStart").value = g.start;
   $("#gEnd").value = g.end;
-  $("#gLimit").value = g.limit;
-  $("#gSun").value = g.sun;
   $("#gRecurrence").value = g.recurrence;
   $("#gWeeklyDay").value = g.weeklyDay ?? 1;
   $$("#recurrenceDays input").forEach(
@@ -351,15 +350,7 @@ function saveEditedGoal() {
     future = [];
   if (remain) {
     let tmp = { ...ng, start: futureStart };
-    let p = makePlan(
-      remain,
-      futureStart,
-      v.end,
-      v.limit,
-      v.sun,
-      tmp,
-      rangeCursor,
-    );
+    let p = makePlan(remain, futureStart, v.end, tmp, rangeCursor);
     if (p.error) {
       alert(p.error);
       return;
@@ -407,26 +398,7 @@ function render() {
     day: "numeric",
     weekday: "long",
   });
-  let all = taskAll(),
-    todayTasks = all.filter((t) => t.date === today),
-    active = state.goals.filter((g) => goalProgress(g) < 100),
-    total = state.goals.reduce((a, g) => a + g.total, 0),
-    done = state.goals.reduce(
-      (a, g) => a + g.plan.reduce((x, t) => x + t.done, 0),
-      0,
-    );
-  $("#statGoals").textContent = active.length;
-  $("#statTasks").textContent = todayTasks.length;
-  $("#statRate").textContent = todayTasks.length
-    ? Math.round(
-        (todayTasks.filter((t) => t.done >= t.amount).length /
-          todayTasks.length) *
-          100,
-      ) + "%"
-    : "0%";
-  $("#statProgress").textContent = total
-    ? Math.round((done / total) * 100) + "%"
-    : "0%";
+  let todayTasks = taskAll().filter((t) => t.date === today);
   $("#taskDate").textContent = fmtDate(today);
   $("#goalList").innerHTML = state.goals.length
     ? state.goals.slice(0, 8).map(goalCard).join("")
@@ -457,7 +429,7 @@ function goalCard(g) {
 }
 function goalRow(g) {
   let c = category(g);
-  return `<div class="goal"><div class="goal-head"><div style="cursor:pointer" onclick="openStampBoard('${g.id}')"><div class="goal-title"><span class="dot" style="display:inline-block;background:${c.color};margin-right:6px"></span>${esc(g.title)}</div><div class="small">${g.rangeStart || g.total}~${g.rangeEnd || g.total}${esc(unitName(g))} · ${fmtDate(g.start)} ~ ${fmtDate(g.end)} · ${esc(recurrenceLabel(g))}</div></div><div><span class="pill">${goalProgress(g)}%</span> <button class="secondary" onclick="openEditGoal('${g.id}')">✎ 수정</button> <button class="secondary danger" onclick="deleteGoal('${g.id}')">삭제</button> <button class="secondary" onclick="reschedule('${g.id}')">↻ 재계획</button></div></div><div class="bar"><i style="width:${goalProgress(g)}%;background:${c.color}"></i></div><div class="small" style="margin-top:7px">목표를 클릭하면 계획 스탬프판을 엽니다.</div></div>`;
+  return `<div class="goal"><div class="goal-head"><div><div class="goal-title"><span class="dot" style="display:inline-block;background:${c.color};margin-right:6px"></span>${esc(g.title)}</div><div class="small">${g.rangeStart || g.total}~${g.rangeEnd || g.total}${esc(unitName(g))} · ${fmtDate(g.start)} ~ ${fmtDate(g.end)} · ${esc(recurrenceLabel(g))}</div></div><div><span class="pill">${goalProgress(g)}%</span> <button class="secondary" onclick="openEditGoal('${g.id}')">✎ 수정</button> <button class="secondary danger" onclick="deleteGoal('${g.id}')">삭제</button> <button class="secondary" onclick="reschedule('${g.id}')">↻ 재계획</button></div></div><div class="bar"><i style="width:${goalProgress(g)}%;background:${c.color}"></i></div></div>`;
 }
 function taskHtml(t) {
   let done = t.done >= t.amount,
@@ -639,7 +611,7 @@ function reschedule(id) {
       ? firstUnfinished.from
       : (g.rangeStart || 1) + doneTotal;
   let tmp = { ...g, start: today };
-  let p = makePlan(remaining, today, g.end, g.limit, g.sun, tmp, rangeCursor);
+  let p = makePlan(remaining, today, g.end, tmp, rangeCursor);
   if (p.error) {
     alert(p.error);
     return;
@@ -684,8 +656,6 @@ function openGoal() {
   $("#gTitle").value = "";
   $("#gStart").value = today;
   $("#gEnd").value = iso(new Date(Date.now() + 29 * 86400000));
-  $("#gLimit").value = state.settings.limit;
-  $("#gSun").value = state.settings.sun;
   $("#gUnit").value = "PAGE";
   $("#gCustomUnit").value = "";
   $("#gCustomUnit").disabled = true;
@@ -709,8 +679,6 @@ function populateCategories() {
     .join("");
 }
 function renderSettings() {
-  $("#defaultLimit").value = state.settings.limit;
-  $("#sunWeight").value = state.settings.sun;
   $("#calStart").value = state.settings.calendarStart;
   $("#calMonths").value = state.settings.calendarMonths;
   $("#categoryList").innerHTML = state.settings.categories
@@ -719,11 +687,6 @@ function renderSettings() {
         `<div class="category-row"><input value="${esc(c.name)}" oninput="updateCategoryName('${c.id}',this.value)"><input class="color-input" type="color" value="${c.color}" onchange="updateCategoryColor('${c.id}',this.value)">${state.settings.categories.length > 1 ? `<button class="secondary danger" onclick="deleteCategory('${c.id}')">삭제</button>` : '<span class="small">기본</span>'}</div>`,
     )
     .join("");
-  let img = $("#stampPreview");
-  if (state.settings.stampImage) {
-    img.src = state.settings.stampImage;
-    img.style.display = "block";
-  } else img.style.display = "none";
 }
 function updateCategoryName(id, v) {
   let c = state.settings.categories.find((x) => x.id === id);
@@ -746,25 +709,6 @@ function deleteCategory(id) {
   );
   save();
 }
-function openStampBoard(id) {
-  let g = state.goals.find((x) => x.id === id);
-  if (!g) return;
-  $("#stampTitle").textContent = g.title + " · 계획 스탬프판";
-  $("#stampSub").textContent =
-    `${fmtDate(g.start)} ~ ${fmtDate(g.end)} · ${g.rangeStart || g.total}~${g.rangeEnd || g.total}${unitName(g)} · ${recurrenceLabel(g)}`;
-  $("#stampBoard").innerHTML = g.plan
-    .map((t, i) => {
-      let done = t.done >= t.amount,
-        img = state.settings.stampImage;
-      return `<div class="stamp-cell ${done ? "done" : ""}" onclick="stampCell('${g.id}','${t.date}',${t.from})" title="${fmtDate(t.date)} · ${taskRange(t)}${unitName(g)}">${img && done ? `<img class="stamp-img" src="${img}">` : ""}<span class="stamp-num">${taskRange(t)}</span>${!done ? `<span class="small">${fmtDate(t.date).slice(5)}</span>` : ""}</div>`;
-    })
-    .join("");
-  $("#stampModal").classList.add("open");
-}
-function stampCell(gid, date, from) {
-  toggleTask(gid, date, from);
-  openStampBoard(gid);
-}
 // events
 $("#newGoal").onclick = openGoal;
 $("#newGoal2").onclick = openGoal;
@@ -773,7 +717,6 @@ $("#closeGoal").onclick = closeGoal;
 $("#createGoal").onclick = () =>
   editingGoalId ? saveEditedGoal() : createGoal();
 $("#closeDetail").onclick = () => $("#detailModal").classList.remove("open");
-$("#closeStamp").onclick = () => $("#stampModal").classList.remove("open");
 $("#backAnnual").onclick = showAnnual;
 $$(".nav button").forEach((b) => (b.onclick = () => showPage(b.dataset.page)));
 $("#gUnit").onchange = () => {
@@ -793,8 +736,6 @@ $("#gRecurrence").onchange = () => {
   "gRangeEnd",
   "gStart",
   "gEnd",
-  "gLimit",
-  "gSun",
   "gRecurrence",
   "gWeeklyDay",
   "gCustomUnit",
@@ -826,8 +767,6 @@ function previewPlan() {
       total,
       $("#gStart").value,
       $("#gEnd").value,
-      +$("#gLimit").value,
-      +$("#gSun").value,
       g,
       rs || 1,
     ),
@@ -853,14 +792,23 @@ $("#nextMonth").onclick = () => {
 };
 $("#editCalendarRange").onclick = () => {
   showPage("settings");
-  setTimeout(() => $("#calStart").focus(), 0);
+  setTimeout(() => openSettingsDialog("calendarSettingsModal"), 0);
 };
-$("#saveSettings").onclick = () => {
-  state.settings.limit = Math.max(1, +$("#defaultLimit").value || 20);
-  state.settings.sun = Math.max(0, +$("#sunWeight").value || 0);
+function openSettingsDialog(id) {
+  renderSettings();
+  $("#" + id).classList.add("open");
+}
+$("#openCalendarSettings").onclick = () => openSettingsDialog("calendarSettingsModal");
+$("#openCategorySettings").onclick = () => openSettingsDialog("categorySettingsModal");
+$("#openBackupSettings").onclick = () => openSettingsDialog("backupSettingsModal");
+$$('[data-close-settings]').forEach((button) => (button.onclick = () => button.closest('.modal-bg').classList.remove('open')));
+$$('.settings-dialog').forEach((dialog) => (dialog.onclick = (event) => { if (event.target === dialog) dialog.classList.remove('open'); }));
+/* Removed: legacy global scheduling defaults.
+  delete state.settings.limit;
+  delete state.settings.sun;
   save();
   alert("기본값을 저장했습니다.");
-};
+}; */
 $("#saveCalRange").onclick = () => {
   let s = $("#calStart").value,
     n = Math.min(12, Math.max(1, +$("#calMonths").value || 12));
@@ -871,6 +819,7 @@ $("#saveCalRange").onclick = () => {
   state.settings.calendarStart = s;
   state.settings.calendarMonths = n;
   save();
+  $("#calendarSettingsModal").classList.remove("open");
   alert("캘린더 표시 범위를 저장했습니다.");
 };
 $("#addCategory").onclick = () => {
@@ -879,20 +828,6 @@ $("#addCategory").onclick = () => {
     name: "새 카테고리",
     color: "#8b85ff",
   });
-  save();
-};
-$("#stampUpload").onchange = (e) => {
-  let f = e.target.files[0];
-  if (!f) return;
-  let r = new FileReader();
-  r.onload = () => {
-    state.settings.stampImage = r.result;
-    save();
-  };
-  r.readAsDataURL(f);
-};
-$("#clearStamp").onclick = () => {
-  state.settings.stampImage = "";
   save();
 };
 if (state.settings.dateFixV3 && !state.settings.dateFixV4) {
@@ -1090,7 +1025,7 @@ render();
     window.goalRow = function (g) {
       let c = category(g),
         f = folderById(g.folderId);
-      return `<div class="goal"><div class="goal-head"><div style="cursor:pointer" onclick="openStampBoard('${g.id}')"><div class="goal-title"><span class="dot" style="display:inline-block;background:${c.color};margin-right:6px"></span>${esc(g.title)}${f ? `<span class="folder-pill">📁 ${esc(f.name)}</span>` : ""}</div><div class="small">${g.rangeStart || g.total}~${g.rangeEnd || g.total}${esc(unitName(g))} · ${fmtDate(g.start)} ~ ${fmtDate(g.end)} · ${esc(recurrenceLabel(g))}</div></div><div><span class="pill">${goalProgress(g)}%</span> <button class="secondary" onclick="openEditGoal('${g.id}')">✎ 수정</button> <button class="secondary" onclick="cloneGoal('${g.id}')">⧉ 복제</button> <button class="secondary danger" onclick="deleteGoal('${g.id}')">삭제</button> <button class="secondary" onclick="reschedule('${g.id}')">↻ 재계획</button></div></div><div class="bar"><i style="width:${goalProgress(g)}%;background:${c.color}"></i></div></div>`;
+      return `<div class="goal"><div class="goal-head"><div><div class="goal-title"><span class="dot" style="display:inline-block;background:${c.color};margin-right:6px"></span>${esc(g.title)}${f ? `<span class="folder-pill">📁 ${esc(f.name)}</span>` : ""}</div><div class="small">${g.rangeStart || g.total}~${g.rangeEnd || g.total}${esc(unitName(g))} · ${fmtDate(g.start)} ~ ${fmtDate(g.end)} · ${esc(recurrenceLabel(g))}</div></div><div><span class="pill">${goalProgress(g)}%</span> <button class="secondary" onclick="openEditGoal('${g.id}')">✎ 수정</button> <button class="secondary" onclick="cloneGoal('${g.id}')">⧉ 복제</button> <button class="secondary danger" onclick="deleteGoal('${g.id}')">삭제</button> <button class="secondary" onclick="reschedule('${g.id}')">↻ 재계획</button></div></div><div class="bar"><i style="width:${goalProgress(g)}%;background:${c.color}"></i></div></div>`;
     };
     function folderGoalRow(f) {
       const ps = folderPlans(f).sort((a, b) =>
@@ -1723,14 +1658,10 @@ render();
     };
     setupV8UI();
     // backup UI in settings
-    if (!$("#backupBox")) {
-      let box = document.createElement("div");
-      box.id = "backupBox";
-      box.className = "card";
-      box.style.marginTop = "18px";
+    if (!$("#exportBackup")) {
+      let box = $("#backupBox");
       box.innerHTML =
-        '<h2 style="font-size:17px">백업</h2><p class="small">현재 계획·폴더·설정·스탬프 정보를 하나의 JSON 파일로 저장하거나 복원합니다.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" id="exportBackup">백업 파일 내보내기</button><button class="secondary" id="importBackupBtn">백업 파일 불러오기</button><input id="importBackup" type="file" accept="application/json,.json" style="display:none"></div>';
-      $("#settings").appendChild(box);
+        '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" id="exportBackup">백업 파일 내보내기</button><button class="secondary" id="importBackupBtn">백업 파일 불러오기</button><input id="importBackup" type="file" accept="application/json,.json" style="display:none"></div>';
       $("#exportBackup").onclick = () => {
         let blob = new Blob([JSON.stringify(state, null, 2)], {
             type: "application/json",
@@ -2189,12 +2120,12 @@ render();
       const tasksForDay = state.goals.flatMap((g) => (g.plan || []).filter((t) => t.date === d).map((t) => ({ ...t, g })));
       const taskTags = tasksForDay.map((t) => {
         const c = category(t.g);
-        return `<div class="week-plan" style="background:${alpha(c.color, 0.16)};color:#111">${esc(t.g.title)}</div>`;
+        return `<div class="week-plan ${t.done >= t.amount ? "done-calendar-task" : ""}" style="background:${alpha(c.color, 0.16)};color:#111">${esc(t.g.title)}</div>`;
       }).join("");
       const flexibleTags = flexibleCandidates(d).map((g) =>
         `<div class="week-plan flexible-week-plan">${esc(g.title)} <span>＋</span></div>`).join("");
       const weekday = ["월","화","수","목","금","토","일"][new Date(d + "T00:00:00").getDay() === 0 ? 6 : new Date(d + "T00:00:00").getDay() - 1];
-      return `<div class="week-day ${d === dayIso(new Date()) ? "today" : ""}" role="button" tabindex="0" onclick="selectDashboardDate('${d}')" onkeydown="if(event.key==='Enter'||event.key===' '){selectDashboardDate('${d}')}"><div class="week-day-head"><span>${weekday}</span><b>${Number(d.slice(-2))}</b></div><div class="week-plan-list">${taskTags || ""}${flexibleTags || ""}</div></div>`;
+      return `<div class="week-day ${d === dayIso(new Date()) ? "today" : ""} ${d === date ? "selected" : ""}" role="button" tabindex="0" onclick="selectDashboardDate('${d}')" onkeydown="if(event.key==='Enter'||event.key===' '){selectDashboardDate('${d}')}"><div class="week-day-head"><span>${weekday}</span><b>${Number(d.slice(-2))}</b></div><div class="week-plan-list">${taskTags || ""}${flexibleTags || ""}</div></div>`;
     }).join("");
     const list = document.getElementById("goalList");
     if (list) {
@@ -2269,7 +2200,7 @@ render();
     dialog.className = "modal-bg";
     dialog.innerHTML = `<div class="modal" style="max-width:360px">
       <div class="section-title"><div><h2 style="margin:0">일일 계획 메뉴</h2><div class="small" id="dailyTaskMenuDescription"></div></div><button class="secondary" type="button" id="dailyTaskMenuClose">닫기</button></div>
-      <div style="display:grid;gap:8px"><button class="secondary" type="button" id="dailyTaskMove">날짜 변경</button><button class="secondary" type="button" id="dailyTaskClone">계획 복제</button><button class="secondary" type="button" id="dailyTaskSplit">계획 분할</button></div>
+      <div style="display:grid;gap:8px"><button class="secondary" type="button" id="dailyTaskMove">날짜 변경</button><button class="secondary" type="button" id="dailyTaskClone">계획 복제</button><button class="secondary" type="button" id="dailyTaskSplit">계획 분할</button><button class="secondary danger" type="button" id="dailyTaskDelete">계획 삭제하기</button></div>
     </div>`;
     document.body.appendChild(dialog);
     const close = () => dialog.classList.remove("open");
@@ -2303,6 +2234,15 @@ render();
       const { goalId, date, from } = dialog.dataset;
       close();
       window.openDailyTaskSplit(goalId, date, Number(from));
+    };
+    dialog.querySelector("#dailyTaskDelete").onclick = () => {
+      const { goalId, date, from } = dialog.dataset;
+      const goal = state.goals.find((item) => item.id === goalId);
+      const index = goal?.plan?.findIndex((item) => item.date === date && item.from === Number(from));
+      if (index < 0) return close();
+      goal.plan.splice(index, 1);
+      close();
+      save();
     };
     return dialog;
   }
